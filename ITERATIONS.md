@@ -29,17 +29,27 @@ in-memory storage, Base62 code generator, and validation layer from this foundat
 
 ---
 
-## Iteration 2 — <title>
+## Iteration 2 — PostgreSQL persistence + duplicate URL detection
 
-**Date:**
+**Date:** 2026-08-29 21:18:00
 
-**Goal:**
+**Goal:** Replace the in-memory map with PostgreSQL persistence and ensure duplicate long URLs reuse the existing short code instead of creating a second record. Keep the existing API contract stable while upgrading the storage layer in a brownfield way.
 
 **Added:**
+- PostgreSQL datasource configuration for local development
+- Docker-based Postgres service setup for the project
+- JPA entity/repository layer for persisted short links
+- Duplicate long-URL detection and reuse logic
+- Migration-friendly repository abstraction that can coexist with the existing service API
 
 **Changed:**
+- `UrlShortenerService` will stop depending on the in-memory `ConcurrentHashMap`
+- `UrlMapping` becomes a persisted entity with a database-backed primary key and timestamps
+- `shorten()` should first check whether the long URL already exists, then return the existing short code rather than creating a duplicate
+- The app configuration will add `spring.datasource.*` properties and local Postgres connection settings
+- Future run instructions will include Docker startup for the Postgres container
 
-**AI-assistance notes:**
+**AI-assistance notes:** This is the brownfield upgrade step: keep the iteration-1 API working while swapping out storage under it. The duplicate matching requirement is critical because identical long URLs should resolve to the same short code, while unique URLs should still create a new short code and persist it to Postgres.
 
 ---
 

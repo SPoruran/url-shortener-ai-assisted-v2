@@ -4,5 +4,6 @@ C:\Users\Owner\OneDrive\Desktop\url-shortener-ai-assisted-v2\url-shortener-ai-as
 C:\Users\Owner\OneDrive\Desktop\url-shortener-ai-assisted-v2\url-shortener-ai-assisted-v2\src\main\java\com\schwab\urlshortener\exception\GlobalExceptionHandler.java
 C:\Users\Owner\OneDrive\Desktop\url-shortener-ai-assisted-v2\url-shortener-ai-assisted-v2\src\main\java\com\schwab\urlshortener\exception\ShortCodeNotFoundException.java
 C:\Users\Owner\OneDrive\Desktop\url-shortener-ai-assisted-v2\url-shortener-ai-assisted-v2\src\main\java\com\schwab\urlshortener\model\UrlMapping.java
+C:\Users\Owner\OneDrive\Desktop\url-shortener-ai-assisted-v2\url-shortener-ai-assisted-v2\src\main\java\com\schwab\urlshortener\repository\UrlMappingRepository.java
 C:\Users\Owner\OneDrive\Desktop\url-shortener-ai-assisted-v2\url-shortener-ai-assisted-v2\src\main\java\com\schwab\urlshortener\service\UrlShortenerService.java
 C:\Users\Owner\OneDrive\Desktop\url-shortener-ai-assisted-v2\url-shortener-ai-assisted-v2\src\main\java\com\schwab\urlshortener\UrlShortenerApplication.java

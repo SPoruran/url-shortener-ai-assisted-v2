@@ -1,61 +1,63 @@
-# URL Shortener (AI-Assisted) — Iteration 1: Basic Functionality
+# URL Shortener (AI-Assisted) — Iteration 2: PostgreSQL Persistence + Duplicate URL Detection
 
-## Status: Simplified Foundation
+## Status: Persistent Brownfield Upgrade
 
-This is the **first iteration** of the project, starting with a simplified version
-focused on the core requirement:
+This is the **second iteration** of the project. It keeps the same API and behavior from iteration 1, but replaces the in-memory `ConcurrentHashMap` with a PostgreSQL-backed persistence layer and adds duplicate long-URL detection.
 
-> Accepts a long URL and returns a shortened, unique, redirectable code.
+> Core requirement: accept a long URL, return a shortened redirectable code, and resolve that code back to the original URL.
 
-This foundation provides a working baseline. Additional features — persistence,
-custom aliases, expiry, analytics, rate limiting, auth, containerization — will
-be added in subsequent iterations as the project naturally evolves. See [`ITERATIONS.md`](ITERATIONS.md)
-for the running log of what changed in each pass and why.
+This iteration is intentionally a brownfield upgrade: the externally visible endpoints remain stable while the storage mechanism changes underneath.
 
 ## What this version does
 
-- `POST /api/shorten` — accepts a long URL, returns a unique short code and
-  short URL.
+- `POST /api/shorten` — accepts a long URL, persists it, and returns a short code and short URL.
 - `GET /{shortCode}` — redirects (HTTP 302) to the original long URL.
-- Validates that the submitted URL is a well-formed `http(s)` URL.
-- Generates a unique 7-character Base62 code, with collision detection
-  against existing codes.
-- Returns a clean `404` with a JSON error body when a short code doesn't
-  exist.
-
-## What comes in future iterations
-
-- Database persistence — currently uses an in-memory `ConcurrentHashMap`.
-- Custom/vanity short codes.
-- Expiry and TTL on links.
-- Click/analytics tracking.
-- Authentication and per-user link ownership.
-- Docker Compose setup.
-- Pagination, listing, and delete endpoints.
-
-Each feature will be added as the project evolves through documented iterations.
+- Validates submitted URLs using `http(s)` rules.
+- Stores mappings in PostgreSQL via JPA.
+- Detects duplicate long URLs and returns the same short code instead of creating a second record.
+- Generates a unique 7-character Base62 code when a new link is created.
+- Returns structured 400/404 error responses for invalid input and missing short codes.
 
 ## Tech stack
 
 - Java 17
-- Spring Boot 3.3 (Web, Validation)
+- Spring Boot 3.3
+- Spring Web
+- Spring Validation
+- Spring Data JPA
+- PostgreSQL
 - Maven
-- JUnit 5 (basic service-layer tests)
+- JUnit 5
 
 ## Project structure
 
 ```
 src/main/java/com/schwab/urlshortener/
-  UrlShortenerApplication.java     - Spring Boot entry point
-  controller/UrlShortenerController.java   - REST endpoints
-  service/UrlShortenerService.java         - code generation + in-memory store
-  model/UrlMapping.java                    - internal mapping record
+  UrlShortenerApplication.java                  - Spring Boot entry point
+  controller/UrlShortenerController.java        - REST endpoints
+  service/UrlShortenerService.java              - persistence-aware shorten/resolve logic
+  model/UrlMapping.java                         - JPA-backed persisted mapping entity
+  repository/UrlMappingRepository.java          - repository for short-code + long-url lookups
   dto/ShortenRequest.java, ShortenResponse.java
   exception/ShortCodeNotFoundException.java, GlobalExceptionHandler.java
 src/test/java/com/schwab/urlshortener/UrlShortenerServiceTest.java
+src/test/resources/application.properties      - H2 test configuration
 ```
 
 ## Running locally
+
+### 1) Start PostgreSQL with Docker
+
+```bash
+docker run --name urlshortener-postgres \
+  -e POSTGRES_DB=urlshortener \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 \
+  -d postgres:16
+```
+
+### 2) Start the app
 
 ```bash
 mvn spring-boot:run
@@ -83,6 +85,16 @@ Response:
 }
 ```
 
+**Shorten the same URL again**
+
+```bash
+curl -X POST http://localhost:8080/api/shorten \
+  -H "Content-Type: application/json" \
+  -d '{"longUrl": "https://www.example.com/some/very/long/path"}'
+```
+
+This returns the same short code instead of creating a duplicate entry.
+
 **Follow the short link**
 
 ```bash
@@ -97,9 +109,6 @@ curl -i http://localhost:8080/aZ3kQ9x
 mvn test
 ```
 
-## Next steps
+## What comes next
 
-See [`ITERATIONS.md`](ITERATIONS.md) — each future change (persistence,
-Docker Compose, custom codes, analytics, etc.) gets its own dated entry
-there, plus a corresponding commit, so the history documents the
-AI-assisted engineering process end to end.
+See [`ITERATIONS.md`](ITERATIONS.md) for the documented progression. The next iteration will continue the roadmap with additional concerns such as custom aliases, expiry, click tracking, rate limiting, and deployment improvements.

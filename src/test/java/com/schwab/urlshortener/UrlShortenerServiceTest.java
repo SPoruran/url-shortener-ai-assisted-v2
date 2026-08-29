@@ -5,20 +5,19 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import org.junit.jupiter.api.BeforeEach;
+
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 
 import com.schwab.urlshortener.exception.ShortCodeNotFoundException;
 import com.schwab.urlshortener.service.UrlShortenerService;
 
+@SpringBootTest
 class UrlShortenerServiceTest {
 
+    @Autowired
     private UrlShortenerService service;
-
-    @BeforeEach
-    void setUp() {
-        service = new UrlShortenerService();
-    }
 
     @Test
     void shorten_returnsNonBlankCodeAndPreservesLongUrl() {
@@ -49,5 +48,14 @@ class UrlShortenerServiceTest {
         var second = service.shorten("https://example.com/b");
 
         assertNotEquals(first.shortCode(), second.shortCode());
+    }
+
+    @Test
+    void shorten_reusesExistingCodeForDuplicateLongUrl() {
+        var first = service.shorten("https://example.com/duplicate");
+        var second = service.shorten("https://example.com/duplicate");
+
+        assertEquals(first.shortCode(), second.shortCode());
+        assertEquals(first.longUrl(), second.longUrl());
     }
 }
