@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS url_mapping (
+    id BIGSERIAL PRIMARY KEY,
+    short_code VARCHAR(64) NOT NULL UNIQUE,
+    long_url VARCHAR(2048) NOT NULL UNIQUE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    click_count BIGINT NOT NULL DEFAULT 0,
+    last_accessed_at TIMESTAMP WITH TIME ZONE
+);

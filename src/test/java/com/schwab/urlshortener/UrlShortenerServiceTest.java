@@ -58,4 +58,21 @@ class UrlShortenerServiceTest {
         assertEquals(first.shortCode(), second.shortCode());
         assertEquals(first.longUrl(), second.longUrl());
     }
+
+    @Test
+    void resolve_incrementsClickCountAndUpdatesLastAccessedAt() {
+        var result = service.shorten("https://example.com/analytics");
+
+        String resolved = service.resolve(result.shortCode());
+        var stats = service.getStats(result.shortCode());
+
+        assertEquals("https://example.com/analytics", resolved);
+        assertEquals(1L, stats.clickCount());
+        assertNotNull(stats.lastAccessedAt());
+    }
+
+    @Test
+    void getStats_throwsForUnknownCode() {
+        assertThrows(ShortCodeNotFoundException.class, () -> service.getStats("doesNotExist"));
+    }
 }

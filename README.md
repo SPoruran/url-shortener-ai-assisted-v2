@@ -1,22 +1,35 @@
-# URL Shortener (AI-Assisted) — Iteration 2: PostgreSQL Persistence + Duplicate URL Detection
+# URL Shortener (AI-Assisted) — Current Version: Iteration 3 Analytics
 
-## Status: Persistent Brownfield Upgrade
+## Status: Minimal analytics for link usage
 
-This is the **second iteration** of the project. It keeps the same API and behavior from iteration 1, but replaces the in-memory `ConcurrentHashMap` with a PostgreSQL-backed persistence layer and adds duplicate long-URL detection.
+This project is now in its **third iteration**, where the requirement was intentionally clarified before implementation. The stakeholder request was vague — “Add analytics to the URL shortener” — so the project scope was narrowed to a defensible, low-risk interpretation.
 
-> Core requirement: accept a long URL, return a shortened redirectable code, and resolve that code back to the original URL.
+> Current interpretation: analytics means tracking link usage via a click count and last-accessed timestamp for each short code.
 
-This iteration is intentionally a brownfield upgrade: the externally visible endpoints remain stable while the storage mechanism changes underneath.
+This iteration keeps the existing URL shortener behavior intact while adding basic operational telemetry for successful resolves.
 
 ## What this version does
 
-- `POST /api/shorten` — accepts a long URL, persists it, and returns a short code and short URL.
-- `GET /{shortCode}` — redirects (HTTP 302) to the original long URL.
-- Validates submitted URLs using `http(s)` rules.
-- Stores mappings in PostgreSQL via JPA.
-- Detects duplicate long URLs and returns the same short code instead of creating a second record.
-- Generates a unique 7-character Base62 code when a new link is created.
-- Returns structured 400/404 error responses for invalid input and missing short codes.
+- `POST /api/shorten` — accepts a long URL and returns a short code.
+- `GET /{shortCode}` — redirects to the original long URL and increments the click count.
+- `GET /api/stats/{shortCode}` — returns the short code, original long URL, click count, created timestamp, and last-accessed timestamp.
+- Reuses the existing validation and 404 behavior for invalid or missing codes.
+- Stores the analytics data in the same persisted model used in iteration 2.
+- Uses atomic increment semantics to avoid lost hits under concurrency.
+
+## Scope decision
+
+The project deliberately excludes broader analytics features such as:
+
+- unique visitor counting
+- referrer tracking
+- device or browser breakdowns
+- geographic analysis
+- dashboards or charts
+- external analytics providers
+- per-user or per-session attribution
+
+These were excluded because they would move the project beyond a small, auditable v1 analytics feature into a much larger product-analytics problem.
 
 ## Tech stack
 
@@ -34,14 +47,16 @@ This iteration is intentionally a brownfield upgrade: the externally visible end
 ```
 src/main/java/com/schwab/urlshortener/
   UrlShortenerApplication.java                  - Spring Boot entry point
-  controller/UrlShortenerController.java        - REST endpoints
-  service/UrlShortenerService.java              - persistence-aware shorten/resolve logic
-  model/UrlMapping.java                         - JPA-backed persisted mapping entity
-  repository/UrlMappingRepository.java          - repository for short-code + long-url lookups
-  dto/ShortenRequest.java, ShortenResponse.java
+  controller/UrlShortenerController.java        - REST endpoints and stats endpoint
+  service/UrlShortenerService.java              - shorten, resolve, and click tracking logic
+  model/UrlMapping.java                         - persisted mapping with click count and last-accessed timestamp
+  repository/UrlMappingRepository.java          - repository with atomic counter updates
+  dto/ShortenRequest.java, ShortenResponse.java, StatsResponse.java
   exception/ShortCodeNotFoundException.java, GlobalExceptionHandler.java
 src/test/java/com/schwab/urlshortener/UrlShortenerServiceTest.java
 src/test/resources/application.properties      - H2 test configuration
+ANALYTICS_DECISION.md                           - ambiguity framing and scope rationale
+ITERATIONS.md                                   - historical iteration log
 ```
 
 ## Running locally
@@ -65,6 +80,20 @@ mvn spring-boot:run
 
 App starts on `http://localhost:8080`.
 
+### If the local PostgreSQL schema is stale or the migration fails
+
+Use Flyway to rebuild the database from the repository migration scripts. For Flyway v10+, `clean` is disabled by default, so you must explicitly allow it for this reset step:
+
+```bash
+mvn flyway:clean flyway:migrate \
+  -Dflyway.url=jdbc:postgresql://localhost:5432/urlshortener \
+  -Dflyway.user=postgres \
+  -Dflyway.password=postgres \
+  -Dflyway.cleanDisabled=false
+```
+
+This is the correct recovery step when a brownfield schema change left an old `url_mapping` table in a bad state, especially after a failed `click_count` migration.
+
 ## API examples
 
 **Shorten a URL**
@@ -85,16 +114,6 @@ Response:
 }
 ```
 
-**Shorten the same URL again**
-
-```bash
-curl -X POST http://localhost:8080/api/shorten \
-  -H "Content-Type: application/json" \
-  -d '{"longUrl": "https://www.example.com/some/very/long/path"}'
-```
-
-This returns the same short code instead of creating a duplicate entry.
-
 **Follow the short link**
 
 ```bash
@@ -103,12 +122,36 @@ curl -i http://localhost:8080/aZ3kQ9x
 # Location: https://www.example.com/some/very/long/path
 ```
 
+**Read link statistics**
+
+```bash
+curl http://localhost:8080/api/stats/aZ3kQ9x
+```
+
+Example response:
+
+```json
+{
+  "shortCode": "aZ3kQ9x",
+  "longUrl": "https://www.example.com/some/very/long/path",
+  "clickCount": 1,
+  "createdAt": "2026-08-29T21:00:00Z",
+  "lastAccessedAt": "2026-08-29T21:05:00Z"
+}
+```
+
 ## Running tests
 
 ```bash
 mvn test
 ```
 
-## What comes next
+## Project history
 
-See [`ITERATIONS.md`](ITERATIONS.md) for the documented progression. The next iteration will continue the roadmap with additional concerns such as custom aliases, expiry, click tracking, rate limiting, and deployment improvements.
+See [`ITERATIONS.md`](ITERATIONS.md) for the full historical record of the baseline, persistence migration, analytics scoping decisions, and the brownfield migration fix for the `click_count` schema issue.
+
+### Bug found and fixed
+
+A schema migration bug was encountered during the analytics iteration: adding a new `click_count` column with `NOT NULL` to an existing PostgreSQL table failed because existing rows had `NULL` values.
+
+The fix was to stop using Hibernate auto-update for schema changes and instead manage the schema explicitly with Flyway migrations, creating the table with a safe default value (`0`) for existing records.

@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.schwab.urlshortener.exception.ShortCodeNotFoundException;
 import com.schwab.urlshortener.model.UrlMapping;
@@ -37,10 +38,27 @@ public class UrlShortenerService {
         return new ShortenResult(shortCode, longUrl);
     }
 
+    @Transactional
     public String resolve(String shortCode) {
-        return urlMappingRepository.findByShortCode(shortCode)
-                .map(UrlMapping::getLongUrl)
+        UrlMapping mapping = urlMappingRepository.findByShortCode(shortCode)
                 .orElseThrow(() -> new ShortCodeNotFoundException(shortCode));
+
+        Instant now = Instant.now();
+        urlMappingRepository.incrementClickCount(shortCode, now);
+        return mapping.getLongUrl();
+    }
+
+    public UrlStats getStats(String shortCode) {
+        UrlMapping mapping = urlMappingRepository.findByShortCode(shortCode)
+                .orElseThrow(() -> new ShortCodeNotFoundException(shortCode));
+
+        return new UrlStats(
+                mapping.getShortCode(),
+                mapping.getLongUrl(),
+                mapping.getClickCount(),
+                mapping.getCreatedAt(),
+                mapping.getLastAccessedAt()
+        );
     }
 
     private String generateUniqueCode() {
@@ -63,5 +81,8 @@ public class UrlShortenerService {
     }
 
     public record ShortenResult(String shortCode, String longUrl) {
+    }
+
+    public record UrlStats(String shortCode, String longUrl, long clickCount, Instant createdAt, Instant lastAccessedAt) {
     }
 }

@@ -1,21 +1,23 @@
 package com.schwab.urlshortener.controller;
 
-import com.schwab.urlshortener.dto.ShortenRequest;
-import com.schwab.urlshortener.dto.ShortenResponse;
-import com.schwab.urlshortener.service.UrlShortenerService;
-import jakarta.validation.Valid;
+import java.net.URI;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.net.URI;
+import com.schwab.urlshortener.dto.ShortenRequest;
+import com.schwab.urlshortener.dto.ShortenResponse;
+import com.schwab.urlshortener.dto.StatsResponse;
+import com.schwab.urlshortener.service.UrlShortenerService;
 
-/**
- * Iteration 1 endpoints only:
- *   POST /api/shorten   - create a short code for a long URL
- *   GET  /{shortCode}   - redirect to the original long URL
- */
+import jakarta.validation.Valid;
+
 @RestController
 public class UrlShortenerController {
 
@@ -40,5 +42,18 @@ public class UrlShortenerController {
                 .location(URI.create(longUrl))
                 .header(HttpHeaders.CACHE_CONTROL, "no-cache")
                 .build();
+    }
+
+    @GetMapping("/api/stats/{shortCode}")
+    public ResponseEntity<StatsResponse> stats(@PathVariable String shortCode) {
+        UrlShortenerService.UrlStats stats = urlShortenerService.getStats(shortCode);
+        StatsResponse response = new StatsResponse(
+                stats.shortCode(),
+                stats.longUrl(),
+                stats.clickCount(),
+                stats.createdAt(),
+                stats.lastAccessedAt()
+        );
+        return ResponseEntity.ok(response);
     }
 }
