@@ -113,6 +113,38 @@ in-memory storage, Base62 code generator, and validation layer from this foundat
 
 ---
 
+## Iteration 5 — Docker Compose orchestration with Postgres + test-only H2
+
+**Date:** 2026-08-29 22:15:00
+
+**Goal:** Move the runtime to a production-style multi-service setup using Docker Compose while keeping H2 strictly within the test profile. This demonstrates realistic service orchestration without breaking the application’s main runtime configuration.
+
+**Added:**
+- `docker-compose.yml` with `db` and `app` services
+- Postgres container using the official `postgres:16` image
+- App container build from a Dockerfile
+- `depends_on` health gating so the app waits for Postgres to be ready
+- Service-to-service connection via Compose DNS (`db` hostname instead of `localhost`)
+- Test-only H2 configuration under `src/test/resources/application-test.properties`
+- Docker ignore file for leaner image builds
+
+**Assumptions and product decisions:**
+- App service and Postgres service are separate containers, because this is a real multi-service deployment pattern and better matches production-style orchestration.
+- H2 remains test-only and must not appear in the main runtime `application.properties` or `docker-compose.yml`.
+- The runtime profile should use PostgreSQL, while Maven tests should activate the test profile and use H2 automatically.
+- Brownfield regression risk: driver scope must stay clean, so the Postgres driver remains runtime-scoped and H2 remains test-scoped.
+
+**Changed files:**
+- `docker-compose.yml`
+- `Dockerfile`
+- `.dockerignore`
+- `src/test/resources/application-test.properties`
+- `src/test/resources/application.properties`
+
+**AI-assistance notes:** This iteration is about correct deployment structure rather than feature expansion. The key requirement is to keep database responsibilities separated: PostgreSQL in the app runtime and H2 only in the test path, so the project remains realistic and avoids a common brownfield trap where the wrong database configuration leaks across environments.
+
+---
+
 ## Bugfix — Brownfield schema migration issue: `click_count` not null on existing rows
 
 **Date:** 2026-08-29 21:42:55

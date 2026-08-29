@@ -1,10 +1,10 @@
-# URL Shortener (AI-Assisted) — Current Version: Iteration 4 Custom Aliases + Expiry
+# URL Shortener (AI-Assisted) — Current Version: Iteration 5 Docker Compose + PostgreSQL
 
 **Date:** 2026-08-29
 
-## Status: Optional custom aliases and expiry support
+## Status: Production-style app + PostgreSQL runtime with Docker Compose
 
-This project is now in its **fourth iteration**. It keeps the iteration-1 behavior intact while adding two opt-in features for callers who want more control over the short-link contract.
+This project is now in its **fifth iteration**. The app keeps the earlier URL-shortening behavior intact while moving the runtime to a proper multi-service Docker Compose setup using PostgreSQL for the main application and H2 only for tests.
 
 > Current interpretation: links can either use an auto-generated code or a caller-provided alias, and expiry is only applied when the caller explicitly sets `expiresInSeconds`.
 
@@ -21,15 +21,13 @@ This iteration adds predictable alias validation and optional TTL enforcement wi
 - Expiry only applies when a positive `expiresInSeconds` is provided; otherwise the link never expires by default.
 - Reuses the existing validation and 404 behavior for invalid or missing codes.
 
-## Iteration 4 decisions and assumptions
+## Iteration 5 decisions and assumptions
 
-- Default TTL behavior: no expiry unless the caller explicitly sets `expiresInSeconds`.
-- Alias format: uppercase/lowercase letters and digits only.
-- Alias length: 4–32 characters.
-- Reserved names rejected: `api`, `health`, `shorten`, `stats`, and any future route collisions should be prohibited.
-- Duplicate alias behavior: reject with `409 Conflict` rather than auto-suffixing.
-- Expiry trade-off: lazy enforcement on resolve only; no scheduled cleanup job is included in this iteration.
-- Future enhancement: expired aliases remain reserved until cleanup, and a nightly cleanup job removes expired records so those aliases can be reused later.
+- Runtime database: PostgreSQL in Docker Compose.
+- Test database: H2 only under the Maven test profile.
+- Compose service-to-service access uses the internal `db` hostname, not `localhost`.
+- Host port 5432 is reserved for the Docker Postgres container; local Postgres should be stopped to avoid conflicts.
+- Expiry behavior remains the same as iteration 4: no expiry unless the caller sets a positive TTL and expired links return `410 Gone` when accessed.
 
 ## Tech stack
 
@@ -63,38 +61,40 @@ ITERATIONS.md                                   - full iteration log and decisio
 
 ## Running locally
 
-### 1) Start PostgreSQL with Docker
+### Docker Compose (current runtime setup)
+
+This project now runs as two services:
+- `db` — PostgreSQL
+- `app` — the Spring Boot application
+
+From the project root:
 
 ```bash
-docker run --name urlshortener-postgres \
-  -e POSTGRES_DB=urlshortener \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -p 5432:5432 \
-  -d postgres:16
+docker compose up --build
 ```
 
-### 2) Start the app
+This starts the application on `http://localhost:8080` and the database on `localhost:5432`.
+
+The app connects to PostgreSQL using the Compose service name `db`, not `localhost`, because inside the container network `localhost` refers to the app container itself.
+
+### Local Java run (without Compose)
+
+If you want to run the app directly on your machine instead of via Docker Compose:
 
 ```bash
 mvn spring-boot:run
 ```
 
-App starts on `http://localhost:8080`.
+### If the Docker database needs to be reset
 
-### If the local PostgreSQL schema is stale or the migration fails
-
-Use Flyway to rebuild the database from the repository migration scripts. For Flyway v10+, `clean` is disabled by default, so you must explicitly allow it for this reset step:
+Use the Compose stack reset instead of a direct local Flyway command:
 
 ```bash
-mvn flyway:clean flyway:migrate \
-  -Dflyway.url=jdbc:postgresql://localhost:5432/urlshortener \
-  -Dflyway.user=postgres \
-  -Dflyway.password=postgres \
-  -Dflyway.cleanDisabled=false
+docker compose down -v --remove-orphans
+docker compose up --build
 ```
 
-This is the correct recovery step when a brownfield schema change left an old `url_mapping` table in a bad state, especially after a failed `click_count` migration.
+This rebuilds the Postgres container and the app from the current project state without leaving stale local database state behind.
 
 ## API examples
 
@@ -156,10 +156,14 @@ Example response:
 
 ## Running tests
 
+The main runtime configuration uses PostgreSQL. H2 remains test-only and is activated via the test profile.
+
 ```bash
 mvn test
 ```
 
+This keeps H2 out of the main `application.properties` and out of the Compose runtime stack.
+
 ## Project history
 
-See [`ITERATIONS.md`](ITERATIONS.md) for the full project record, including the initial baseline, PostgreSQL persistence work, and the later iteration-4 alias and expiry decisions.
+See [`ITERATIONS.md`](ITERATIONS.md) for the full project record, including the baseline, PostgreSQL persistence, custom alias and expiry work, and the current Docker Compose orchestration update.
