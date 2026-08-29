@@ -39,16 +39,24 @@ public class UrlMapping {
     @Column(name = "last_accessed_at")
     private Instant lastAccessedAt;
 
+    @Column(name = "expires_at")
+    private Instant expiresAt;
+
     protected UrlMapping() {
         // JPA
     }
 
     public UrlMapping(String shortCode, String longUrl, Instant createdAt) {
+        this(shortCode, longUrl, createdAt, null);
+    }
+
+    public UrlMapping(String shortCode, String longUrl, Instant createdAt, Instant expiresAt) {
         this.shortCode = shortCode;
         this.longUrl = longUrl;
         this.createdAt = createdAt;
         this.clickCount = 0L;
         this.lastAccessedAt = createdAt;
+        this.expiresAt = expiresAt;
     }
 
     public Long getId() {
@@ -75,11 +83,19 @@ public class UrlMapping {
         return lastAccessedAt;
     }
 
+    public Instant getExpiresAt() {
+        return expiresAt;
+    }
+
     public void setClickCount(Long clickCount) {
         this.clickCount = clickCount;
     }
 
     public void setLastAccessedAt(Instant lastAccessedAt) {
         this.lastAccessedAt = lastAccessedAt;
+    }
+
+    public void setExpiresAt(Instant expiresAt) {
+        this.expiresAt = expiresAt;
     }
 }

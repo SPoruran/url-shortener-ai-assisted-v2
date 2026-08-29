@@ -77,9 +77,45 @@ in-memory storage, Base62 code generator, and validation layer from this foundat
 
 ---
 
+## Iteration 4 — Custom aliases + expiry (no expiry unless explicitly requested)
+
+**Date:** 2026-08-29 21:58:00
+
+**Goal:** Extend the existing API with optional custom aliases and optional expiry, without breaking the iteration-1 behavior when neither field is supplied.
+
+**Added:**
+- Optional `customAlias` field on `ShortenRequest`
+- Optional `expiresInSeconds` field on `ShortenRequest`
+- Alias validation for alphanumeric-only values, 4-32 character length, and reserved names
+- `409 Conflict` handling for duplicate aliases
+- Optional TTL behavior where links expire only when the caller sets a positive expiry value
+- Lazy expiry enforcement on resolve (`GET /{shortCode}` returns `410 Gone` when expired)
+
+**Assumptions and product decisions:**
+- Default behavior: no expiry unless the caller explicitly provides `expiresInSeconds`
+- Alias character set: uppercase/lowercase letters + digits only, because it keeps URLs readable and avoids separators and reserved path characters
+- Alias length: 4-32 characters, balancing readability and safety
+- Duplicate custom alias behavior: reject with `409 Conflict` rather than auto-suffixing, because it is predictable and easier to reason about
+- Expiry trade-off: lazy enforcement only for this iteration; no scheduled cleanup is added yet
+- Future enhancement: expired aliases remain reserved until cleanup, and a nightly cleanup job will remove expired records so those aliases can be reused later
+
+**Changed files:**
+- `src/main/java/com/schwab/urlshortener/dto/ShortenRequest.java`
+- `src/main/java/com/schwab/urlshortener/service/UrlShortenerService.java`
+- `src/main/java/com/schwab/urlshortener/model/UrlMapping.java`
+- `src/main/java/com/schwab/urlshortener/controller/UrlShortenerController.java`
+- `src/main/java/com/schwab/urlshortener/exception/DuplicateAliasException.java`
+- `src/main/java/com/schwab/urlshortener/exception/UrlExpiredException.java`
+- `src/main/resources/db/migration/V2__add_expiry_to_url_mapping.sql`
+- `src/test/java/com/schwab/urlshortener/UrlShortenerServiceTest.java`
+
+**AI-assistance notes:** This iteration keeps the app conservative and backward-compatible by making both features opt-in. The alias feature preserves the original auto-generated code flow when no alias is provided, and the expiry feature only changes behavior when the call explicitly sets an expiry window.
+
+---
+
 ## Bugfix — Brownfield schema migration issue: `click_count` not null on existing rows
 
-**Date:** 2026-08-29 16:22:55
+**Date:** 2026-08-29 21:42:55
 
 **Problem:** Attempting to add a non-null `click_count` column via Hibernate auto-update caused PostgreSQL to reject the migration.
 

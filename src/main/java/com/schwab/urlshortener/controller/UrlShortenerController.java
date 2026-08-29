@@ -29,7 +29,11 @@ public class UrlShortenerController {
 
     @PostMapping("/api/shorten")
     public ResponseEntity<ShortenResponse> shorten(@Valid @RequestBody ShortenRequest request) {
-        UrlShortenerService.ShortenResult result = urlShortenerService.shorten(request.getLongUrl());
+        UrlShortenerService.ShortenResult result = urlShortenerService.shorten(
+                request.getLongUrl(),
+                request.getCustomAlias(),
+                request.getExpiresInSeconds()
+        );
         String shortUrl = "/" + result.shortCode();
         ShortenResponse response = new ShortenResponse(result.shortCode(), shortUrl, result.longUrl());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
