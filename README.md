@@ -167,3 +167,19 @@ This keeps H2 out of the main `application.properties` and out of the Compose ru
 ## Project history
 
 See [`ITERATIONS.md`](ITERATIONS.md) for the full project record, including the baseline, PostgreSQL persistence, custom alias and expiry work, and the current Docker Compose orchestration update.
+
+## Final refactor notes
+
+This final pass is a refactor only. It does not change the public behavior of the shortener API or the runtime setup. The intent is to improve maintainability and clarify responsibilities without expanding scope.
+
+### Refactored areas
+- `UrlShortenerService` was split into smaller responsibilities by extracting `AliasValidator` for custom alias validation and `LinkExpiryPolicy` for TTL and expiry checks.
+- Validation logic was centralized so alias rules and expiry rules are owned by dedicated components instead of being embedded in one large service class.
+- The application structure now better reflects the single-responsibility principle while keeping the same API contract and response semantics.
+
+### Verification
+- The full Maven test suite was run after the refactor to confirm no regression in shortening, redirect, alias validation, expiry enforcement, or stats behavior.
+
+### No behavior change
+- Existing routes, JSON contracts, and Docker Compose runtime remain the same.
+- The refactor is limited to code organization and maintainability, not new functionality.
