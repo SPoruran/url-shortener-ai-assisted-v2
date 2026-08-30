@@ -1,75 +1,58 @@
-# URL Shortener (AI-Assisted) — Current Version: Iteration 5 Docker Compose + PostgreSQL
+# URL Shortener
 
-**Date:** 2026-08-29
+A Spring Boot URL shortener with PostgreSQL persistence, Flyway database migrations, optional custom aliases and expiry, and basic redirect analytics.
 
-## Status: Production-style app + PostgreSQL runtime with Docker Compose
+## Features
 
-This project is now in its **fifth iteration**. The app keeps the earlier URL-shortening behavior intact while moving the runtime to a proper multi-service Docker Compose setup using PostgreSQL for the main application and H2 only for tests.
+- Create a short URL from a long HTTP or HTTPS URL.
+- Reuse the existing short code for a duplicate long URL.
+- Support validated custom aliases and optional expiry periods.
+- Redirect `GET /{shortCode}` requests to the stored URL.
+- Return `410 Gone` for expired links and `404 Not Found` for missing links.
+- Track successful redirects with a click count and last-access timestamp.
 
-> Current interpretation: links can either use an auto-generated code or a caller-provided alias, and expiry is only applied when the caller explicitly sets `expiresInSeconds`.
+## Technology
 
-This iteration adds predictable alias validation and optional TTL enforcement without changing the old behavior for existing callers.
+- Java 17 and Spring Boot 3.3
+- Spring Web, Validation, and Data JPA
+- PostgreSQL, Flyway, and H2 for tests
+- Docker Compose, Maven, and JUnit 5
 
-## What this version does
-
-- `POST /api/shorten` — accepts a long URL and optionally a `customAlias` and `expiresInSeconds`.
-- Auto-generated short codes still work exactly as before when the caller omits `customAlias`.
-- `GET /{shortCode}` — redirects to the original long URL, increments the click count for valid links, and returns `410 Gone` when the link has expired.
-- `GET /api/stats/{shortCode}` — returns analytics data for the short code, including click count and timestamps.
-- Duplicate custom aliases are rejected with `409 Conflict` instead of silently creating a second record.
-- Alias validation enforces alphanumeric-only values, bounded length, and reserved-name rejection.
-- Expiry only applies when a positive `expiresInSeconds` is provided; otherwise the link never expires by default.
-- Reuses the existing validation and 404 behavior for invalid or missing codes.
-
-## Iteration 5 decisions and assumptions
-
-- Runtime database: PostgreSQL in Docker Compose.
-- Test database: H2 only under the Maven test profile.
-- Compose service-to-service access uses the internal `db` hostname, not `localhost`.
-- Host port 5432 is reserved for the Docker Postgres container; local Postgres should be stopped to avoid conflicts.
-- Expiry behavior remains the same as iteration 4: no expiry unless the caller sets a positive TTL and expired links return `410 Gone` when accessed.
-
-## Tech stack
-
-- Java 17
-- Spring Boot 3.3
-- Spring Web
-- Spring Validation
-- Spring Data JPA
-- PostgreSQL
-- Maven
-- JUnit 5
-
-## Project structure
+## Project Structure
 
 ```
 src/main/java/com/schwab/urlshortener/
-  UrlShortenerApplication.java                  - Spring Boot entry point
-  controller/UrlShortenerController.java        - REST endpoints, redirect handling, and stats endpoint
-  service/UrlShortenerService.java              - shorten, resolve, alias validation, and expiry logic
-  model/UrlMapping.java                         - persisted mapping with click count, last-accessed timestamp, and optional expiry
-  repository/UrlMappingRepository.java          - repository with atomic counter updates
-  dto/ShortenRequest.java, ShortenResponse.java, StatsResponse.java
-  exception/ShortCodeNotFoundException.java, DuplicateAliasException.java, UrlExpiredException.java, GlobalExceptionHandler.java
+  controller/                                    - create, redirect, and analytics endpoints
+  service/                                       - shortening, redirect, analytics, validation, and expiry services
+  repository/UrlMappingRepository.java           - persistence and atomic click-count update
+  model/UrlMapping.java                          - persisted URL mapping
+  dto/                                           - request and response objects
+  exception/                                     - domain exceptions and HTTP error handling
+  util/ShortCodeGenerator.java                   - short-code generation
 src/main/resources/db/migration/
-  V1__init_schema.sql                           - initial PostgreSQL schema
-  V2__add_expiry_to_url_mapping.sql            - adds optional expiry column
-src/test/java/com/schwab/urlshortener/UrlShortenerServiceTest.java
-src/test/resources/application.properties      - H2 test configuration
-ITERATIONS.md                                   - full iteration log and decision history
+  V1__init_schema.sql                            - initial PostgreSQL schema
+  V2__add_expiry_to_url_mapping.sql              - expiry support
+src/test/java/com/schwab/urlshortener/           - unit tests
+docs/                                            - setup, architecture, testing, and decision records
 ```
 
-## Running locally
+## Run Locally
 
-### Docker Compose (current runtime setup)
+### Docker Compose
 
-This project now runs as two services:
-- `db` — PostgreSQL
-- `app` — the Spring Boot application
+This project runs as two services: the Spring Boot application and PostgreSQL.
+
+On Windows, start Docker Desktop and wait until it is running before continuing. Verify the Docker daemon is available:
+
+```cmd
+docker version
+```
+
+The output must include both `Client` and `Server` sections. If it reports an error for `dockerDesktopLinuxEngine`, restart Docker Desktop and ensure its WSL 2 based Linux engine is enabled.
 
 From the project root:
 
-```bash
+```cmd
 docker compose up --build
 ```
 
@@ -77,13 +60,15 @@ This starts the application on `http://localhost:8080` and the database on `loca
 
 The app connects to PostgreSQL using the Compose service name `db`, not `localhost`, because inside the container network `localhost` refers to the app container itself.
 
-### Local Java run (without Compose)
+### Local Java Run
 
 If you want to run the app directly on your machine instead of via Docker Compose:
 
-```bash
+```cmd
 mvn spring-boot:run
 ```
+
+The external PostgreSQL setup has not been validated end-to-end from this local environment. See the [setup guide](docs/SETUP.md) for configuration details and constraints.
 
 ### If the Docker database needs to be reset
 
@@ -96,26 +81,26 @@ docker compose up --build
 
 This rebuilds the Postgres container and the app from the current project state without leaving stale local database state behind.
 
-## API examples
+## API Examples
 
-**Shorten a URL**
+`longUrl` is required. Both `customAlias` and `expiresInSeconds` are optional: omit them to generate a code without expiry, or provide either value when needed.
 
-```bash
-curl -X POST http://localhost:8080/api/shorten \
-  -H "Content-Type: application/json" \
-  -d '{"longUrl": "https://www.example.com/some/very/long/path"}'
+**Shorten a URL without optional fields**
+
+```cmd
+curl.exe -X POST "http://localhost:8080/api/shorten" -H "Content-Type: application/json" -d "{\"longUrl\":\"https://www.example.com/some/very/long/path\"}"
 ```
 
-**Shorten with a custom alias and expiry**
+Response (`201 Created`):
 
-```bash
-curl -X POST http://localhost:8080/api/shorten \
-  -H "Content-Type: application/json" \
-  -d '{
-    "longUrl": "https://www.example.com/some/very/long/path",
-    "customAlias": "demo42",
-    "expiresInSeconds": 86400
-  }'
+```json
+{"shortCode":"KtGvWS3","shortUrl":"/KtGvWS3","longUrl":"https://www.example.com/some/very/long/path"}
+```
+
+**Shorten with optional custom alias and expiry**
+
+```cmd
+curl.exe -X POST "http://localhost:8080/api/shorten" -H "Content-Type: application/json" -d "{\"longUrl\":\"https://www.example.com/new-unique-page-123\",\"customAlias\":\"demo42\",\"expiresInSeconds\":86400}"
 ```
 
 Response:
@@ -124,22 +109,24 @@ Response:
 {
   "shortCode": "demo42",
   "shortUrl": "/demo42",
-  "longUrl": "https://www.example.com/some/very/long/path"
+  "longUrl": "https://www.example.com/new-unique-page-123"
 }
 ```
 
 **Follow the short link**
 
-```bash
-curl -i http://localhost:8080/demo42
+```cmd
+curl.exe -i -X GET "http://localhost:8080/demo42"
 # HTTP/1.1 302 Found
-# Location: https://www.example.com/some/very/long/path
+# Location: https://www.example.com/new-unique-page-123
 ```
+
+Or open `http://localhost:8080/demo42` in a browser. The browser should redirect to `https://www.example.com/new-unique-page-123`.
 
 **Read link statistics**
 
-```bash
-curl http://localhost:8080/api/stats/demo42
+```cmd
+curl.exe -X GET "http://localhost:8080/api/stats/demo42"
 ```
 
 Example response:
@@ -154,32 +141,28 @@ Example response:
 }
 ```
 
-## Running tests
+## Test
 
 The main runtime configuration uses PostgreSQL. H2 remains test-only and is activated via the test profile.
 
-```bash
+```cmd
 mvn test
 ```
 
-This keeps H2 out of the main `application.properties` and out of the Compose runtime stack.
+To run one test class:
 
-## Project history
+```cmd
+mvn test -Dtest=ShortUrlServiceTest
+```
 
-See [`ITERATIONS.md`](ITERATIONS.md) for the full project record, including the baseline, PostgreSQL persistence, custom alias and expiry work, and the current Docker Compose orchestration update.
+Maven must be installed and available on `PATH`. Test reports are written to `target/surefire-reports/`.
 
-## Final refactor notes
+## Documentation
 
-This final pass is a refactor only. It does not change the public behavior of the shortener API or the runtime setup. The intent is to improve maintainability and clarify responsibilities without expanding scope.
-
-### Refactored areas
-- `UrlShortenerService` was split into smaller responsibilities by extracting `AliasValidator` for custom alias validation and `LinkExpiryPolicy` for TTL and expiry checks.
-- Validation logic was centralized so alias rules and expiry rules are owned by dedicated components instead of being embedded in one large service class.
-- The application structure now better reflects the single-responsibility principle while keeping the same API contract and response semantics.
-
-### Verification
-- The full Maven test suite was run after the refactor to confirm no regression in shortening, redirect, alias validation, expiry enforcement, or stats behavior.
-
-### No behavior change
-- Existing routes, JSON contracts, and Docker Compose runtime remain the same.
-- The refactor is limited to code organization and maintainability, not new functionality.
+- [Setup guide](docs/SETUP.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Testing](docs/TESTING.md)
+- [Analytics scope decision](docs/ANALYTICS_DECISION.md)
+- [Engineering summary](docs/ENGINEERING_SUMMARY.md)
+- [Project scenarios](docs/SCENARIOS.md)
+- [AI usage tracker](docs/AI_USAGE_TRACKER.md)

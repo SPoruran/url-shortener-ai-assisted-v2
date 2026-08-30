@@ -16,24 +16,36 @@ This document provides step-by-step setup and deployment instructions for the UR
 ### Verify Installation
 ```bash
 docker --version          # Docker 20.10+
-docker-compose --version  # Docker Compose 1.29+
+docker compose version    # Docker Compose v2+
 java -version             # openjdk 17+
 mvn --version             # Apache Maven 3.8+
 ```
+
+### Start and Verify Docker Desktop (Windows)
+
+Before running Docker Compose on Windows, open Docker Desktop from the Start menu and wait until it reports that Docker Desktop is running. Docker Desktop must use Linux containers with the WSL 2 based engine enabled.
+
+Run the following command in Command Prompt to verify that both the Docker client and daemon are available:
+
+```cmd
+docker version
+```
+
+The output must contain both `Client` and `Server` sections. If the `Server` section is missing or the command reports an error for `dockerDesktopLinuxEngine`, Docker Desktop is not ready. Restart Docker Desktop, wait for it to finish starting, and run `docker version` again before continuing.
 
 ---
 
 ## Option 1: Run with Docker Compose (Recommended)
 
 ### Step 1: Clone the Repository
-```bash
+```cmd
 git clone <repository-url>
 cd url-shortener-ai-assisted-v2
 ```
 
 ### Step 2: Build and Start Services
-```bash
-docker-compose up --build
+```cmd
+docker compose up --build
 ```
 
 **What happens:**
@@ -51,17 +63,17 @@ db_1   | database system is ready to accept connections
 ```
 
 ### Step 3: Verify Services
-```bash
+```cmd
 # Check if app is running
-curl http://localhost:8080/actuator/health
+curl.exe -X GET "http://localhost:8080/actuator/health"
 
 # Expected response:
 # {"status":"UP"}
 ```
 
 ### Step 4: Stop Services
-```bash
-docker-compose down
+```cmd
+docker compose down
 ```
 
 ---
